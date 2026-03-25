@@ -1,0 +1,1509 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Ledger — Expense Tracker</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=DM+Serif+Display:ital@0;1&family=Martian+Mono:wght@300;400;500&family=Libre+Franklin:wght@300;400;500&display=swap" rel="stylesheet">
+<script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.js"></script>
+<style>
+  :root {
+    --bg: #0d0d0e;
+    --bg2: #141416;
+    --bg3: #1a1a1d;
+    --bg4: #222227;
+    --border: rgba(255,255,255,0.07);
+    --border2: rgba(255,255,255,0.13);
+    --text: #f0ede6;
+    --text2: #9a9690;
+    --text3: #5c5a56;
+    --amber: #e8a838;
+    --amber2: #c4852a;
+    --amber-dim: rgba(232,168,56,0.12);
+    --green: #4dba7e;
+    --red: #e05252;
+    --blue: #5b9cf6;
+    --serif: 'DM Serif Display', serif;
+    --mono: 'Martian Mono', monospace;
+    --sans: 'Libre Franklin', sans-serif;
+  }
+
+  *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+  body {
+    background: var(--bg);
+    color: var(--text);
+    font-family: var(--sans);
+    font-size: 14px;
+    line-height: 1.6;
+    min-height: 100vh;
+  }
+
+  /* Grain overlay */
+  body::before {
+    content: '';
+    position: fixed;
+    inset: 0;
+    background-image: url("data:image/svg+xml,%3Csvg viewBox='0 0 256 256' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='noise'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='4' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23noise)' opacity='0.04'/%3E%3C/svg%3E");
+    pointer-events: none;
+    z-index: 9999;
+    opacity: 0.4;
+  }
+
+  /* Layout */
+  .app { display: flex; min-height: 100vh; }
+
+  /* Sidebar */
+  .sidebar {
+    width: 220px;
+    min-width: 220px;
+    background: var(--bg2);
+    border-right: 1px solid var(--border);
+    display: flex;
+    flex-direction: column;
+    padding: 28px 0;
+    position: sticky;
+    top: 0;
+    height: 100vh;
+  }
+
+  .logo {
+    padding: 0 24px 28px;
+    border-bottom: 1px solid var(--border);
+    margin-bottom: 20px;
+  }
+
+  .logo-mark {
+    font-family: var(--serif);
+    font-size: 22px;
+    color: var(--amber);
+    letter-spacing: -0.5px;
+  }
+
+  .logo-sub {
+    font-family: var(--mono);
+    font-size: 9px;
+    color: var(--text3);
+    letter-spacing: 2px;
+    text-transform: uppercase;
+    margin-top: 2px;
+  }
+
+  .nav-section {
+    padding: 0 12px;
+    margin-bottom: 8px;
+  }
+
+  .nav-label {
+    font-family: var(--mono);
+    font-size: 9px;
+    color: var(--text3);
+    letter-spacing: 2px;
+    text-transform: uppercase;
+    padding: 0 12px;
+    margin-bottom: 6px;
+    margin-top: 16px;
+  }
+
+  .nav-item {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    padding: 9px 12px;
+    border-radius: 6px;
+    cursor: pointer;
+    color: var(--text2);
+    font-size: 13px;
+    font-weight: 400;
+    transition: all 0.15s;
+    border: 1px solid transparent;
+  }
+
+  .nav-item:hover { background: var(--bg3); color: var(--text); }
+  .nav-item.active { background: var(--amber-dim); color: var(--amber); border-color: rgba(232,168,56,0.2); }
+
+  .nav-icon { font-size: 14px; opacity: 0.9; }
+
+  .sidebar-bottom {
+    margin-top: auto;
+    padding: 20px 24px 0;
+    border-top: 1px solid var(--border);
+  }
+
+  .month-display {
+    font-family: var(--mono);
+    font-size: 11px;
+    color: var(--text3);
+    text-transform: uppercase;
+    letter-spacing: 1px;
+    margin-bottom: 8px;
+  }
+
+  .month-selector {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+  }
+
+  .month-btn {
+    background: none;
+    border: 1px solid var(--border);
+    color: var(--text2);
+    width: 24px;
+    height: 24px;
+    border-radius: 4px;
+    cursor: pointer;
+    font-size: 12px;
+    display: flex;align-items:center;justify-content:center;
+    transition: all 0.15s;
+  }
+  .month-btn:hover { border-color: var(--amber); color: var(--amber); }
+
+  .month-current {
+    font-family: var(--mono);
+    font-size: 12px;
+    color: var(--text);
+    flex: 1;
+    text-align: center;
+  }
+
+  /* Main content */
+  .main { flex: 1; overflow-y: auto; }
+
+  /* Pages */
+  .page { display: none; padding: 32px 36px; animation: fadeIn 0.2s ease; }
+  .page.active { display: block; }
+
+  @keyframes fadeIn { from { opacity: 0; transform: translateY(6px); } to { opacity: 1; transform: translateY(0); } }
+
+  .page-header {
+    display: flex;
+    align-items: flex-end;
+    justify-content: space-between;
+    margin-bottom: 32px;
+    padding-bottom: 20px;
+    border-bottom: 1px solid var(--border);
+  }
+
+  .page-title {
+    font-family: var(--serif);
+    font-size: 32px;
+    color: var(--text);
+    line-height: 1;
+  }
+
+  .page-title span {
+    font-style: italic;
+    color: var(--amber);
+  }
+
+  .page-meta {
+    font-family: var(--mono);
+    font-size: 11px;
+    color: var(--text3);
+    text-align: right;
+    letter-spacing: 0.5px;
+  }
+
+  /* Stats row */
+  .stats-row {
+    display: grid;
+    grid-template-columns: repeat(4, 1fr);
+    gap: 12px;
+    margin-bottom: 28px;
+  }
+
+  .stat-card {
+    background: var(--bg2);
+    border: 1px solid var(--border);
+    border-radius: 10px;
+    padding: 18px 20px;
+    transition: border-color 0.15s;
+  }
+
+  .stat-card:hover { border-color: var(--border2); }
+
+  .stat-card.accent {
+    background: var(--amber-dim);
+    border-color: rgba(232,168,56,0.25);
+  }
+
+  .stat-label {
+    font-family: var(--mono);
+    font-size: 9px;
+    color: var(--text3);
+    text-transform: uppercase;
+    letter-spacing: 2px;
+    margin-bottom: 8px;
+  }
+
+  .stat-value {
+    font-family: var(--mono);
+    font-size: 22px;
+    font-weight: 500;
+    color: var(--text);
+    letter-spacing: -0.5px;
+  }
+
+  .stat-card.accent .stat-value { color: var(--amber); }
+  .stat-value.red { color: var(--red); }
+  .stat-value.green { color: var(--green); }
+
+  .stat-sub {
+    font-size: 11px;
+    color: var(--text3);
+    margin-top: 4px;
+  }
+
+  /* Grid 2-col */
+  .grid-2 {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 16px;
+    margin-bottom: 20px;
+  }
+
+  .grid-3 {
+    display: grid;
+    grid-template-columns: 1fr 1fr 1fr;
+    gap: 16px;
+    margin-bottom: 20px;
+  }
+
+  /* Panels */
+  .panel {
+    background: var(--bg2);
+    border: 1px solid var(--border);
+    border-radius: 12px;
+    padding: 22px;
+  }
+
+  .panel-title {
+    font-family: var(--mono);
+    font-size: 10px;
+    text-transform: uppercase;
+    letter-spacing: 2px;
+    color: var(--text3);
+    margin-bottom: 16px;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+  }
+
+  /* Chart containers */
+  .chart-wrap { position: relative; width: 100%; height: 220px; }
+  .chart-wrap-tall { position: relative; width: 100%; height: 280px; }
+
+  /* Transaction list */
+  .tx-list { display: flex; flex-direction: column; gap: 2px; }
+
+  .tx-item {
+    display: flex;
+    align-items: center;
+    padding: 11px 14px;
+    border-radius: 8px;
+    cursor: pointer;
+    transition: background 0.12s;
+    gap: 12px;
+  }
+
+  .tx-item:hover { background: var(--bg3); }
+
+  .tx-cat-dot {
+    width: 8px;
+    height: 8px;
+    border-radius: 50%;
+    flex-shrink: 0;
+  }
+
+  .tx-info { flex: 1; min-width: 0; }
+
+  .tx-name {
+    font-size: 13px;
+    color: var(--text);
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+
+  .tx-meta {
+    font-family: var(--mono);
+    font-size: 10px;
+    color: var(--text3);
+    margin-top: 1px;
+  }
+
+  .tx-amount {
+    font-family: var(--mono);
+    font-size: 13px;
+    font-weight: 500;
+    flex-shrink: 0;
+  }
+
+  .tx-amount.out { color: var(--red); }
+  .tx-amount.in { color: var(--green); }
+
+  /* Add transaction form */
+  .form-section {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 12px;
+    margin-bottom: 16px;
+  }
+
+  .form-group { display: flex; flex-direction: column; gap: 6px; }
+  .form-group.full { grid-column: 1 / -1; }
+
+  .form-label {
+    font-family: var(--mono);
+    font-size: 10px;
+    color: var(--text3);
+    text-transform: uppercase;
+    letter-spacing: 1.5px;
+  }
+
+  .form-input, .form-select {
+    background: var(--bg3);
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    padding: 10px 14px;
+    color: var(--text);
+    font-family: var(--sans);
+    font-size: 13px;
+    outline: none;
+    transition: border-color 0.15s;
+    width: 100%;
+  }
+
+  .form-input:focus, .form-select:focus {
+    border-color: var(--amber);
+    background: var(--bg4);
+  }
+
+  .form-input::placeholder { color: var(--text3); }
+
+  .form-select option { background: var(--bg3); }
+
+  .type-toggle {
+    display: flex;
+    gap: 6px;
+  }
+
+  .type-btn {
+    flex: 1;
+    padding: 9px;
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    background: var(--bg3);
+    color: var(--text2);
+    font-family: var(--mono);
+    font-size: 11px;
+    text-transform: uppercase;
+    letter-spacing: 1px;
+    cursor: pointer;
+    transition: all 0.15s;
+  }
+
+  .type-btn.active-out { background: rgba(224,82,82,0.15); border-color: rgba(224,82,82,0.4); color: var(--red); }
+  .type-btn.active-in { background: rgba(77,186,126,0.15); border-color: rgba(77,186,126,0.4); color: var(--green); }
+
+  .btn-primary {
+    background: var(--amber);
+    color: #0d0d0e;
+    border: none;
+    border-radius: 8px;
+    padding: 12px 24px;
+    font-family: var(--mono);
+    font-size: 12px;
+    font-weight: 500;
+    text-transform: uppercase;
+    letter-spacing: 1.5px;
+    cursor: pointer;
+    transition: all 0.15s;
+    width: 100%;
+  }
+
+  .btn-primary:hover { background: #f0b840; transform: translateY(-1px); }
+  .btn-primary:active { transform: translateY(0); }
+
+  /* Filters bar */
+  .filter-bar {
+    display: flex;
+    gap: 10px;
+    margin-bottom: 20px;
+    align-items: center;
+    flex-wrap: wrap;
+  }
+
+  .filter-chip {
+    padding: 6px 14px;
+    border-radius: 20px;
+    border: 1px solid var(--border);
+    background: var(--bg2);
+    color: var(--text2);
+    font-family: var(--mono);
+    font-size: 11px;
+    cursor: pointer;
+    transition: all 0.15s;
+    white-space: nowrap;
+  }
+
+  .filter-chip:hover { border-color: var(--border2); color: var(--text); }
+  .filter-chip.active { background: var(--amber-dim); border-color: rgba(232,168,56,0.3); color: var(--amber); }
+
+  .filter-input {
+    background: var(--bg2);
+    border: 1px solid var(--border);
+    border-radius: 20px;
+    padding: 6px 16px;
+    color: var(--text);
+    font-family: var(--sans);
+    font-size: 12px;
+    outline: none;
+    margin-left: auto;
+    width: 180px;
+    transition: border-color 0.15s;
+  }
+
+  .filter-input:focus { border-color: var(--border2); }
+  .filter-input::placeholder { color: var(--text3); }
+
+  /* AI Scan section */
+  .ai-panel {
+    background: linear-gradient(135deg, rgba(232,168,56,0.06), rgba(91,156,246,0.06));
+    border: 1px solid rgba(232,168,56,0.2);
+    border-radius: 12px;
+    padding: 24px;
+    margin-bottom: 20px;
+  }
+
+  .ai-title {
+    font-family: var(--serif);
+    font-size: 18px;
+    color: var(--amber);
+    margin-bottom: 6px;
+    display: flex;
+    align-items: center;
+    gap: 10px;
+  }
+
+  .ai-badge {
+    font-family: var(--mono);
+    font-size: 9px;
+    background: rgba(232,168,56,0.2);
+    color: var(--amber);
+    padding: 3px 8px;
+    border-radius: 10px;
+    text-transform: uppercase;
+    letter-spacing: 1px;
+    vertical-align: middle;
+  }
+
+  .ai-desc {
+    font-size: 13px;
+    color: var(--text2);
+    margin-bottom: 18px;
+    line-height: 1.7;
+  }
+
+  .ai-actions { display: flex; gap: 10px; flex-wrap: wrap; }
+
+  .ai-btn {
+    padding: 10px 20px;
+    border-radius: 8px;
+    border: 1px solid rgba(232,168,56,0.3);
+    background: rgba(232,168,56,0.1);
+    color: var(--amber);
+    font-family: var(--mono);
+    font-size: 11px;
+    text-transform: uppercase;
+    letter-spacing: 1px;
+    cursor: pointer;
+    transition: all 0.15s;
+  }
+
+  .ai-btn:hover { background: rgba(232,168,56,0.2); }
+
+  .ai-btn.secondary {
+    border-color: rgba(91,156,246,0.3);
+    background: rgba(91,156,246,0.08);
+    color: var(--blue);
+  }
+
+  .ai-btn.secondary:hover { background: rgba(91,156,246,0.15); }
+
+  /* Notification feed */
+  .notif-item {
+    display: flex;
+    gap: 12px;
+    padding: 12px 0;
+    border-bottom: 1px solid var(--border);
+  }
+
+  .notif-item:last-child { border-bottom: none; }
+
+  .notif-icon {
+    width: 34px;
+    height: 34px;
+    border-radius: 8px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 14px;
+    flex-shrink: 0;
+  }
+
+  .notif-icon.out { background: rgba(224,82,82,0.15); }
+  .notif-icon.in { background: rgba(77,186,126,0.15); }
+  .notif-icon.ai { background: rgba(232,168,56,0.15); }
+
+  .notif-content { flex: 1; }
+
+  .notif-title { font-size: 13px; color: var(--text); }
+  .notif-sub { font-family: var(--mono); font-size: 10px; color: var(--text3); margin-top: 2px; }
+
+  .notif-amount {
+    font-family: var(--mono);
+    font-size: 13px;
+    font-weight: 500;
+    align-self: center;
+  }
+
+  /* Category progress */
+  .cat-row {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    margin-bottom: 12px;
+  }
+
+  .cat-label-wrap {
+    min-width: 100px;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+  }
+
+  .cat-dot { width: 8px; height: 8px; border-radius: 50%; flex-shrink: 0; }
+
+  .cat-name { font-size: 12px; color: var(--text2); }
+
+  .cat-bar-wrap { flex: 1; background: var(--bg3); border-radius: 3px; height: 5px; overflow: hidden; }
+
+  .cat-bar { height: 100%; border-radius: 3px; transition: width 0.8s cubic-bezier(0.4, 0, 0.2, 1); }
+
+  .cat-amount {
+    font-family: var(--mono);
+    font-size: 11px;
+    color: var(--text2);
+    min-width: 80px;
+    text-align: right;
+  }
+
+  /* Report filters */
+  .report-controls {
+    display: flex;
+    gap: 12px;
+    margin-bottom: 24px;
+    flex-wrap: wrap;
+  }
+
+  .report-select {
+    background: var(--bg2);
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    padding: 9px 14px;
+    color: var(--text);
+    font-family: var(--mono);
+    font-size: 11px;
+    outline: none;
+    cursor: pointer;
+    transition: border-color 0.15s;
+  }
+
+  .report-select:focus { border-color: var(--amber); }
+
+  /* Delete btn */
+  .del-btn {
+    background: none;
+    border: none;
+    color: var(--text3);
+    cursor: pointer;
+    padding: 4px;
+    border-radius: 4px;
+    font-size: 12px;
+    transition: color 0.15s;
+    flex-shrink: 0;
+  }
+
+  .del-btn:hover { color: var(--red); }
+
+  /* Empty state */
+  .empty-state {
+    text-align: center;
+    padding: 40px 20px;
+    color: var(--text3);
+  }
+
+  .empty-icon { font-size: 32px; margin-bottom: 12px; opacity: 0.4; }
+  .empty-text { font-size: 13px; font-family: var(--mono); letter-spacing: 0.5px; }
+
+  /* Toast */
+  .toast {
+    position: fixed;
+    bottom: 24px;
+    right: 24px;
+    background: var(--bg4);
+    border: 1px solid var(--amber);
+    border-radius: 10px;
+    padding: 14px 20px;
+    font-family: var(--mono);
+    font-size: 12px;
+    color: var(--amber);
+    z-index: 10000;
+    transform: translateY(80px);
+    opacity: 0;
+    transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+  }
+
+  .toast.show { transform: translateY(0); opacity: 1; }
+
+  /* Scrollbar */
+  ::-webkit-scrollbar { width: 4px; }
+  ::-webkit-scrollbar-track { background: transparent; }
+  ::-webkit-scrollbar-thumb { background: var(--bg4); border-radius: 2px; }
+
+  /* Mobile responsive */
+  @media (max-width: 768px) {
+    .sidebar { display: none; }
+    .stats-row { grid-template-columns: 1fr 1fr; }
+    .grid-2, .grid-3 { grid-template-columns: 1fr; }
+    .page { padding: 20px 16px; }
+    .form-section { grid-template-columns: 1fr; }
+    .form-group.full { grid-column: 1; }
+    .mobile-nav {
+      display: flex !important;
+    }
+  }
+
+  .mobile-nav {
+    display: none;
+    position: fixed;
+    bottom: 0;
+    left: 0;
+    right: 0;
+    background: var(--bg2);
+    border-top: 1px solid var(--border);
+    padding: 10px 0 16px;
+    z-index: 1000;
+    justify-content: space-around;
+  }
+
+  .mob-nav-item {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 4px;
+    cursor: pointer;
+    padding: 4px 12px;
+    border-radius: 8px;
+    color: var(--text3);
+    font-size: 10px;
+    font-family: var(--mono);
+    transition: color 0.15s;
+  }
+
+  .mob-nav-item.active { color: var(--amber); }
+  .mob-nav-icon { font-size: 18px; }
+</style>
+</head>
+<body>
+
+<div class="app">
+  <!-- Sidebar -->
+  <aside class="sidebar">
+    <div class="logo">
+      <div class="logo-mark">Ledger</div>
+      <div class="logo-sub">Expense Manager</div>
+    </div>
+
+    <div class="nav-section">
+      <div class="nav-label">Main</div>
+      <div class="nav-item active" data-page="dashboard">
+        <span class="nav-icon">◈</span> Dashboard
+      </div>
+      <div class="nav-item" data-page="transactions">
+        <span class="nav-icon">≡</span> Transactions
+      </div>
+      <div class="nav-item" data-page="add">
+        <span class="nav-icon">+</span> Add Entry
+      </div>
+    </div>
+
+    <div class="nav-section">
+      <div class="nav-label">Insights</div>
+      <div class="nav-item" data-page="reports">
+        <span class="nav-icon">◎</span> Reports
+      </div>
+      <div class="nav-item" data-page="ai">
+        <span class="nav-icon">✦</span> AI Scan
+      </div>
+    </div>
+
+    <div class="sidebar-bottom">
+      <div class="month-display">Current Period</div>
+      <div class="month-selector">
+        <button class="month-btn" id="prevMonth">‹</button>
+        <span class="month-current" id="monthDisplay">—</span>
+        <button class="month-btn" id="nextMonth">›</button>
+      </div>
+    </div>
+  </aside>
+
+  <!-- Main -->
+  <main class="main">
+
+    <!-- DASHBOARD -->
+    <div class="page active" id="page-dashboard">
+      <div class="page-header">
+        <div>
+          <div class="page-title">Good <span id="greeting-time">morning</span></div>
+          <div style="font-size:13px;color:var(--text2);margin-top:6px;" id="greeting-date">—</div>
+        </div>
+        <div class="page-meta" id="dash-meta">—</div>
+      </div>
+
+      <div class="stats-row" id="stats-row"></div>
+
+      <div class="grid-2">
+        <div class="panel">
+          <div class="panel-title">Spending over time <span id="chart-period-label" style="color:var(--amber)">—</span></div>
+          <div class="chart-wrap"><canvas id="lineChart"></canvas></div>
+        </div>
+        <div class="panel">
+          <div class="panel-title">By category</div>
+          <div id="cat-breakdown"></div>
+        </div>
+      </div>
+
+      <div class="grid-2">
+        <div class="panel">
+          <div class="panel-title">Recent transactions</div>
+          <div class="tx-list" id="recent-tx"></div>
+        </div>
+        <div class="panel">
+          <div class="panel-title">Expense split <span style="color:var(--text3)">— this month</span></div>
+          <div style="position:relative;height:200px;display:flex;align-items:center;justify-content:center;">
+            <canvas id="doughnutChart"></canvas>
+            <div style="position:absolute;text-align:center;pointer-events:none;">
+              <div style="font-family:var(--mono);font-size:18px;color:var(--text);" id="donut-total">—</div>
+              <div style="font-family:var(--mono);font-size:10px;color:var(--text3)">total out</div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- TRANSACTIONS -->
+    <div class="page" id="page-transactions">
+      <div class="page-header">
+        <div class="page-title">All <span>Transactions</span></div>
+        <div class="page-meta" id="tx-count-meta">— entries</div>
+      </div>
+
+      <div class="filter-bar" id="filter-bar">
+        <div class="filter-chip active" data-filter="all">All</div>
+        <div class="filter-chip" data-filter="expense">Expenses</div>
+        <div class="filter-chip" data-filter="income">Income</div>
+        <div class="filter-chip" data-filter="food">Food</div>
+        <div class="filter-chip" data-filter="transport">Transport</div>
+        <div class="filter-chip" data-filter="utilities">Utilities</div>
+        <div class="filter-chip" data-filter="entertainment">Entertainment</div>
+        <div class="filter-chip" data-filter="health">Health</div>
+        <div class="filter-chip" data-filter="other">Other</div>
+        <input type="text" class="filter-input" id="search-input" placeholder="Search…">
+      </div>
+
+      <div class="panel">
+        <div class="tx-list" id="all-tx-list"></div>
+      </div>
+    </div>
+
+    <!-- ADD ENTRY -->
+    <div class="page" id="page-add">
+      <div class="page-header">
+        <div class="page-title">New <span>Entry</span></div>
+        <div class="page-meta">Log a transaction manually</div>
+      </div>
+
+      <div class="panel" style="max-width:560px;">
+        <div class="form-group" style="margin-bottom:18px;">
+          <div class="form-label">Transaction type</div>
+          <div class="type-toggle">
+            <button class="type-btn active-out" id="type-expense" onclick="setType('expense')">Expense</button>
+            <button class="type-btn" id="type-income" onclick="setType('income')">Income</button>
+          </div>
+        </div>
+
+        <div class="form-section">
+          <div class="form-group full">
+            <label class="form-label">Description</label>
+            <input type="text" class="form-input" id="desc-input" placeholder="e.g. Grocery run at Shoprite">
+          </div>
+          <div class="form-group">
+            <label class="form-label">Amount (₦)</label>
+            <input type="number" class="form-input" id="amount-input" placeholder="0.00" min="0">
+          </div>
+          <div class="form-group">
+            <label class="form-label">Date</label>
+            <input type="date" class="form-input" id="date-input">
+          </div>
+          <div class="form-group">
+            <label class="form-label">Category</label>
+            <select class="form-select" id="cat-input">
+              <option value="food">Food & Dining</option>
+              <option value="transport">Transport</option>
+              <option value="utilities">Utilities</option>
+              <option value="entertainment">Entertainment</option>
+              <option value="health">Health</option>
+              <option value="savings">Savings</option>
+              <option value="salary">Salary</option>
+              <option value="other">Other</option>
+            </select>
+          </div>
+          <div class="form-group">
+            <label class="form-label">Note (optional)</label>
+            <input type="text" class="form-input" id="note-input" placeholder="Any extra detail...">
+          </div>
+        </div>
+
+        <button class="btn-primary" onclick="addTransaction()">Record Transaction</button>
+      </div>
+    </div>
+
+    <!-- REPORTS -->
+    <div class="page" id="page-reports">
+      <div class="page-header">
+        <div class="page-title">Financial <span>Reports</span></div>
+        <div class="page-meta">Insights & analytics</div>
+      </div>
+
+      <div class="report-controls">
+        <select class="report-select" id="report-month">
+          <option value="all">All Time</option>
+        </select>
+        <select class="report-select" id="report-type">
+          <option value="all">All Types</option>
+          <option value="expense">Expenses Only</option>
+          <option value="income">Income Only</option>
+        </select>
+        <select class="report-select" id="report-cat">
+          <option value="all">All Categories</option>
+          <option value="food">Food & Dining</option>
+          <option value="transport">Transport</option>
+          <option value="utilities">Utilities</option>
+          <option value="entertainment">Entertainment</option>
+          <option value="health">Health</option>
+          <option value="savings">Savings</option>
+          <option value="other">Other</option>
+        </select>
+        <button class="ai-btn" onclick="generateReport()" style="margin-left:auto;">Generate Report</button>
+      </div>
+
+      <div class="stats-row" id="report-stats"></div>
+
+      <div class="grid-2">
+        <div class="panel">
+          <div class="panel-title">Monthly comparison</div>
+          <div class="chart-wrap-tall"><canvas id="barChart"></canvas></div>
+        </div>
+        <div class="panel">
+          <div class="panel-title">Category breakdown</div>
+          <div style="position:relative;height:280px;"><canvas id="pieChart"></canvas></div>
+        </div>
+      </div>
+
+      <div class="panel" style="margin-top:16px;">
+        <div class="panel-title">Filtered transactions</div>
+        <div class="tx-list" id="report-tx-list"></div>
+      </div>
+    </div>
+
+    <!-- AI SCAN -->
+    <div class="page" id="page-ai">
+      <div class="page-header">
+        <div class="page-title">AI <span>Transaction Scan</span></div>
+        <div class="page-meta">Smart detection & insights</div>
+      </div>
+
+      <div class="ai-panel">
+        <div class="ai-title">✦ AI-Powered Insights <span class="ai-badge">Beta</span></div>
+        <div class="ai-desc">
+          Ledger can scan your notification-style transaction alerts and automatically parse them into your ledger. Paste a transaction notification below, or use the AI to analyze your spending patterns and get personalized insights for the current month.
+        </div>
+        <div class="ai-actions">
+          <button class="ai-btn" onclick="aiAnalyzeSpending()">✦ Analyze Spending Patterns</button>
+          <button class="ai-btn secondary" onclick="aiParseNotification()">Parse Notification</button>
+          <button class="ai-btn secondary" onclick="aiSuggestBudget()">Suggest Budget</button>
+        </div>
+      </div>
+
+      <div class="grid-2">
+        <div class="panel">
+          <div class="panel-title">Paste transaction alert</div>
+          <textarea class="form-input" id="notif-input" rows="5" style="resize:vertical;width:100%;min-height:120px;" placeholder="e.g. 'GTB: Debit of NGN 15,000.00 from Acct **1234. Desc: SUPERMARKET PURCHASE. 12/03/2025 10:43AM. Bal: 45,230.00'"></textarea>
+          <button class="ai-btn" style="margin-top:12px;width:100%;" onclick="parseNotifText()">✦ Parse & Add to Ledger</button>
+        </div>
+        <div class="panel">
+          <div class="panel-title">Recent AI detections</div>
+          <div id="ai-detections">
+            <div class="empty-state">
+              <div class="empty-icon">✦</div>
+              <div class="empty-text">No detections yet</div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <div class="panel" id="ai-insights-panel">
+        <div class="panel-title">AI Insights <span id="ai-insights-status" style="color:var(--amber)"></span></div>
+        <div id="ai-insights-content">
+          <div class="empty-state">
+            <div class="empty-icon" style="font-size:24px;">◎</div>
+            <div class="empty-text">Run analysis to see insights</div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+  </main>
+</div>
+
+<!-- Mobile nav -->
+<nav class="mobile-nav">
+  <div class="mob-nav-item active" data-page="dashboard">
+    <span class="mob-nav-icon">◈</span>
+    <span>Home</span>
+  </div>
+  <div class="mob-nav-item" data-page="transactions">
+    <span class="mob-nav-icon">≡</span>
+    <span>Txns</span>
+  </div>
+  <div class="mob-nav-item" data-page="add">
+    <span class="mob-nav-icon">+</span>
+    <span>Add</span>
+  </div>
+  <div class="mob-nav-item" data-page="reports">
+    <span class="mob-nav-icon">◎</span>
+    <span>Reports</span>
+  </div>
+  <div class="mob-nav-item" data-page="ai">
+    <span class="mob-nav-icon">✦</span>
+    <span>AI</span>
+  </div>
+</nav>
+
+<div class="toast" id="toast"></div>
+
+<script>
+const CAT_COLORS = {
+  food: '#e8a838',
+  transport: '#5b9cf6',
+  utilities: '#9b72e8',
+  entertainment: '#e05252',
+  health: '#4dba7e',
+  savings: '#4dba7e',
+  salary: '#4dba7e',
+  other: '#9a9690'
+};
+
+const CAT_LABELS = {
+  food: 'Food & Dining',
+  transport: 'Transport',
+  utilities: 'Utilities',
+  entertainment: 'Entertainment',
+  health: 'Health',
+  savings: 'Savings',
+  salary: 'Salary',
+  other: 'Other'
+};
+
+let currentMonth = new Date().getMonth();
+let currentYear = new Date().getFullYear();
+let currentType = 'expense';
+let filterActive = 'all';
+
+let transactions = JSON.parse(localStorage.getItem('ledger_txns') || '[]');
+
+if (transactions.length === 0) {
+  const now = new Date();
+  const y = now.getFullYear(), m = now.getMonth();
+  const seed = [
+    { id: uid(), type:'expense', desc:'Shoprite groceries', amount:18500, category:'food', date: fmtDate(new Date(y,m,3)), note:'' },
+    { id: uid(), type:'expense', desc:'Uber ride to office', amount:2200, category:'transport', date: fmtDate(new Date(y,m,5)), note:'' },
+    { id: uid(), type:'income', desc:'Monthly salary', amount:450000, category:'salary', date: fmtDate(new Date(y,m,1)), note:'' },
+    { id: uid(), type:'expense', desc:'Netflix subscription', amount:4500, category:'entertainment', date: fmtDate(new Date(y,m,8)), note:'' },
+    { id: uid(), type:'expense', desc:'DSTV subscription', amount:8800, category:'entertainment', date: fmtDate(new Date(y,m,9)), note:'' },
+    { id: uid(), type:'expense', desc:'EKEDC electricity bill', amount:25000, category:'utilities', date: fmtDate(new Date(y,m,10)), note:'' },
+    { id: uid(), type:'expense', desc:'Chicken Republic dinner', amount:6300, category:'food', date: fmtDate(new Date(y,m,12)), note:'' },
+    { id: uid(), type:'expense', desc:'Chemist pharmacy', amount:3500, category:'health', date: fmtDate(new Date(y,m,14)), note:'' },
+    { id: uid(), type:'expense', desc:'Bolt rides (weekly)', amount:9200, category:'transport', date: fmtDate(new Date(y,m,16)), note:'' },
+    { id: uid(), type:'expense', desc:'Water & internet bills', amount:12000, category:'utilities', date: fmtDate(new Date(y,m,18)), note:'' },
+  ];
+  transactions = seed;
+  save();
+}
+
+function uid() { return Date.now().toString(36) + Math.random().toString(36).slice(2); }
+function fmtDate(d) { return d.toISOString().split('T')[0]; }
+function save() { localStorage.setItem('ledger_txns', JSON.stringify(transactions)); }
+function fmt(n) { return '₦' + Number(n).toLocaleString('en-NG', {minimumFractionDigits:0, maximumFractionDigits:0}); }
+
+function getMonthName(m, y) {
+  return new Date(y, m, 1).toLocaleString('default', { month: 'long', year: 'numeric' });
+}
+
+function getMonthTxns(m, y) {
+  return transactions.filter(t => {
+    const d = new Date(t.date);
+    return d.getMonth() === m && d.getFullYear() === y;
+  });
+}
+
+// Init month display
+function updateMonthDisplay() {
+  document.getElementById('monthDisplay').textContent = new Date(currentYear, currentMonth, 1).toLocaleString('default', { month: 'short', year: '2-digit' });
+}
+
+document.getElementById('prevMonth').onclick = () => {
+  currentMonth--; if (currentMonth < 0) { currentMonth = 11; currentYear--; }
+  updateMonthDisplay(); renderAll();
+};
+document.getElementById('nextMonth').onclick = () => {
+  currentMonth++; if (currentMonth > 11) { currentMonth = 0; currentYear++; }
+  updateMonthDisplay(); renderAll();
+};
+
+// Nav
+function navigate(page) {
+  document.querySelectorAll('.page').forEach(p => p.classList.remove('active'));
+  document.querySelectorAll('.nav-item,.mob-nav-item').forEach(n => n.classList.remove('active'));
+  document.getElementById('page-' + page).classList.add('active');
+  document.querySelectorAll('[data-page="' + page + '"]').forEach(n => n.classList.add('active'));
+  if (page === 'reports') renderReports();
+}
+
+document.querySelectorAll('[data-page]').forEach(el => {
+  el.addEventListener('click', () => navigate(el.dataset.page));
+});
+
+// Greeting
+function setGreeting() {
+  const h = new Date().getHours();
+  const t = h < 12 ? 'morning' : h < 17 ? 'afternoon' : 'evening';
+  document.getElementById('greeting-time').textContent = t;
+  document.getElementById('greeting-date').textContent = new Date().toLocaleDateString('en-NG', { weekday:'long', day:'numeric', month:'long', year:'numeric' });
+}
+
+// Stats
+function renderStats() {
+  const txns = getMonthTxns(currentMonth, currentYear);
+  const totalOut = txns.filter(t => t.type === 'expense').reduce((a,b) => a + b.amount, 0);
+  const totalIn = txns.filter(t => t.type === 'income').reduce((a,b) => a + b.amount, 0);
+  const balance = totalIn - totalOut;
+  const count = txns.length;
+
+  document.getElementById('dash-meta').innerHTML = getMonthName(currentMonth, currentYear) + '<br>' + count + ' transactions';
+
+  document.getElementById('stats-row').innerHTML = `
+    <div class="stat-card accent">
+      <div class="stat-label">Total Spent</div>
+      <div class="stat-value">${fmt(totalOut)}</div>
+      <div class="stat-sub">${txns.filter(t=>t.type==='expense').length} expenses</div>
+    </div>
+    <div class="stat-card">
+      <div class="stat-label">Income</div>
+      <div class="stat-value green">${fmt(totalIn)}</div>
+      <div class="stat-sub">${txns.filter(t=>t.type==='income').length} entries</div>
+    </div>
+    <div class="stat-card">
+      <div class="stat-label">Net Balance</div>
+      <div class="stat-value ${balance >= 0 ? 'green' : 'red'}">${fmt(balance)}</div>
+      <div class="stat-sub">${balance >= 0 ? 'Surplus' : 'Deficit'}</div>
+    </div>
+    <div class="stat-card">
+      <div class="stat-label">Avg / Day</div>
+      <div class="stat-value">${fmt(Math.round(totalOut / 30))}</div>
+      <div class="stat-sub">expenses</div>
+    </div>
+  `;
+}
+
+let lineChartInst, doughnutInst;
+
+function renderCharts() {
+  const txns = getMonthTxns(currentMonth, currentYear);
+  const days = new Date(currentYear, currentMonth + 1, 0).getDate();
+  const labels = Array.from({length: days}, (_, i) => i+1);
+  const dailySpend = Array(days).fill(0);
+  txns.filter(t => t.type === 'expense').forEach(t => {
+    const d = new Date(t.date).getDate() - 1;
+    if (d >= 0 && d < days) dailySpend[d] += t.amount;
+  });
+
+  document.getElementById('chart-period-label').textContent = getMonthName(currentMonth, currentYear);
+
+  const lineCtx = document.getElementById('lineChart').getContext('2d');
+  if (lineChartInst) lineChartInst.destroy();
+  lineChartInst = new Chart(lineCtx, {
+    type: 'line',
+    data: {
+      labels,
+      datasets: [{
+        data: dailySpend,
+        borderColor: '#e8a838',
+        backgroundColor: 'rgba(232,168,56,0.08)',
+        borderWidth: 2,
+        pointRadius: 0,
+        pointHoverRadius: 4,
+        pointHoverBackgroundColor: '#e8a838',
+        fill: true,
+        tension: 0.4
+      }]
+    },
+    options: {
+      responsive: true,
+      maintainAspectRatio: false,
+      plugins: { legend: { display: false }, tooltip: {
+        callbacks: { label: ctx => fmt(ctx.raw) }
+      }},
+      scales: {
+        x: { ticks: { color: '#5c5a56', maxTicksLimit: 8, font: { family: 'Martian Mono', size: 10 }}, grid: { color: 'rgba(255,255,255,0.04)' }, border: { display: false } },
+        y: { ticks: { color: '#5c5a56', font: { family: 'Martian Mono', size: 10 }, callback: v => '₦' + (v/1000).toFixed(0) + 'k' }, grid: { color: 'rgba(255,255,255,0.04)' }, border: { display: false } }
+      }
+    }
+  });
+
+  // Doughnut
+  const catTotals = {};
+  txns.filter(t => t.type === 'expense').forEach(t => { catTotals[t.category] = (catTotals[t.category]||0) + t.amount; });
+  const catKeys = Object.keys(catTotals);
+  const totalOut = Object.values(catTotals).reduce((a,b)=>a+b,0);
+  document.getElementById('donut-total').textContent = fmt(totalOut);
+
+  const dCtx = document.getElementById('doughnutChart').getContext('2d');
+  if (doughnutInst) doughnutInst.destroy();
+  if (catKeys.length === 0) return;
+  doughnutInst = new Chart(dCtx, {
+    type: 'doughnut',
+    data: {
+      labels: catKeys.map(k => CAT_LABELS[k] || k),
+      datasets: [{ data: catKeys.map(k => catTotals[k]), backgroundColor: catKeys.map(k => CAT_COLORS[k]||'#888'), borderWidth: 0, hoverOffset: 4 }]
+    },
+    options: {
+      responsive: true,
+      maintainAspectRatio: false,
+      cutout: '70%',
+      plugins: {
+        legend: { display: false },
+        tooltip: { callbacks: { label: ctx => CAT_LABELS[ctx.label]||ctx.label + ': ' + fmt(ctx.raw) } }
+      }
+    }
+  });
+
+  // Category breakdown
+  const sortedCats = catKeys.sort((a,b) => catTotals[b] - catTotals[a]);
+  const maxCat = Math.max(...sortedCats.map(k => catTotals[k]), 1);
+  document.getElementById('cat-breakdown').innerHTML = sortedCats.length === 0
+    ? '<div class="empty-state"><div class="empty-text">No expenses this month</div></div>'
+    : sortedCats.map(k => `
+    <div class="cat-row">
+      <div class="cat-label-wrap">
+        <span class="cat-dot" style="background:${CAT_COLORS[k]||'#888'}"></span>
+        <span class="cat-name">${CAT_LABELS[k]||k}</span>
+      </div>
+      <div class="cat-bar-wrap"><div class="cat-bar" style="width:${Math.round(catTotals[k]/maxCat*100)}%;background:${CAT_COLORS[k]||'#888'}"></div></div>
+      <div class="cat-amount">${fmt(catTotals[k])}</div>
+    </div>`).join('');
+}
+
+function renderRecentTx() {
+  const txns = getMonthTxns(currentMonth, currentYear).sort((a,b) => new Date(b.date) - new Date(a.date)).slice(0, 6);
+  const el = document.getElementById('recent-tx');
+  if (!txns.length) { el.innerHTML = '<div class="empty-state"><div class="empty-icon">≡</div><div class="empty-text">No transactions yet</div></div>'; return; }
+  el.innerHTML = txns.map(t => txRow(t, false)).join('');
+}
+
+function txRow(t, showDel = true) {
+  return `<div class="tx-item">
+    <span class="tx-cat-dot" style="background:${CAT_COLORS[t.category]||'#888'}"></span>
+    <div class="tx-info">
+      <div class="tx-name">${t.desc}</div>
+      <div class="tx-meta">${CAT_LABELS[t.category]||t.category} · ${new Date(t.date).toLocaleDateString('en-NG',{day:'numeric',month:'short'})}</div>
+    </div>
+    <span class="tx-amount ${t.type==='income'?'in':'out'}">${t.type==='income'?'+':'-'}${fmt(t.amount)}</span>
+    ${showDel ? `<button class="del-btn" onclick="deleteTx('${t.id}')">✕</button>` : ''}
+  </div>`;
+}
+
+// All transactions with filter
+function renderAllTx() {
+  let txns = [...transactions].sort((a,b) => new Date(b.date) - new Date(a.date));
+  const search = document.getElementById('search-input')?.value?.toLowerCase() || '';
+  if (filterActive !== 'all') {
+    if (filterActive === 'expense' || filterActive === 'income') txns = txns.filter(t => t.type === filterActive);
+    else txns = txns.filter(t => t.category === filterActive);
+  }
+  if (search) txns = txns.filter(t => t.desc.toLowerCase().includes(search) || (t.note||'').toLowerCase().includes(search));
+  document.getElementById('tx-count-meta').textContent = txns.length + ' entries';
+  const el = document.getElementById('all-tx-list');
+  el.innerHTML = txns.length ? txns.map(t => txRow(t)).join('') : '<div class="empty-state"><div class="empty-icon">≡</div><div class="empty-text">Nothing matches</div></div>';
+}
+
+document.getElementById('search-input').addEventListener('input', renderAllTx);
+
+document.querySelectorAll('#filter-bar .filter-chip').forEach(chip => {
+  chip.addEventListener('click', () => {
+    document.querySelectorAll('#filter-bar .filter-chip').forEach(c => c.classList.remove('active'));
+    chip.classList.add('active');
+    filterActive = chip.dataset.filter;
+    renderAllTx();
+  });
+});
+
+function deleteTx(id) {
+  transactions = transactions.filter(t => t.id !== id);
+  save(); renderAll(); showToast('Transaction removed');
+}
+
+// Add transaction
+function setType(t) {
+  currentType = t;
+  document.getElementById('type-expense').className = 'type-btn' + (t==='expense'?' active-out':'');
+  document.getElementById('type-income').className = 'type-btn' + (t==='income'?' active-in':'');
+}
+
+function addTransaction() {
+  const desc = document.getElementById('desc-input').value.trim();
+  const amount = parseFloat(document.getElementById('amount-input').value);
+  const date = document.getElementById('date-input').value;
+  const category = document.getElementById('cat-input').value;
+  const note = document.getElementById('note-input').value.trim();
+
+  if (!desc || !amount || !date) { showToast('Please fill in all required fields'); return; }
+
+  transactions.push({ id: uid(), type: currentType, desc, amount, category, date, note });
+  save();
+  document.getElementById('desc-input').value = '';
+  document.getElementById('amount-input').value = '';
+  document.getElementById('note-input').value = '';
+  showToast('Transaction recorded ✓');
+  renderAll();
+  navigate('dashboard');
+}
+
+// Reports
+let barChartInst, pieChartInst;
+function renderReports() {
+  const mSelect = document.getElementById('report-month');
+  const months = [...new Set(transactions.map(t => t.date.slice(0,7)))].sort().reverse();
+  mSelect.innerHTML = '<option value="all">All Time</option>' + months.map(m => `<option value="${m}">${new Date(m+'-01').toLocaleString('default',{month:'long',year:'numeric'})}</option>`).join('');
+
+  generateReport();
+}
+
+function generateReport() {
+  const mVal = document.getElementById('report-month').value;
+  const tVal = document.getElementById('report-type').value;
+  const cVal = document.getElementById('report-cat').value;
+
+  let txns = [...transactions];
+  if (mVal !== 'all') txns = txns.filter(t => t.date.startsWith(mVal));
+  if (tVal !== 'all') txns = txns.filter(t => t.type === tVal);
+  if (cVal !== 'all') txns = txns.filter(t => t.category === cVal);
+
+  const totalOut = txns.filter(t=>t.type==='expense').reduce((a,b)=>a+b.amount,0);
+  const totalIn = txns.filter(t=>t.type==='income').reduce((a,b)=>a+b.amount,0);
+  document.getElementById('report-stats').innerHTML = `
+    <div class="stat-card accent"><div class="stat-label">Total Expenses</div><div class="stat-value">${fmt(totalOut)}</div></div>
+    <div class="stat-card"><div class="stat-label">Total Income</div><div class="stat-value green">${fmt(totalIn)}</div></div>
+    <div class="stat-card"><div class="stat-label">Net</div><div class="stat-value ${totalIn-totalOut>=0?'green':'red'}">${fmt(totalIn-totalOut)}</div></div>
+    <div class="stat-card"><div class="stat-label">Count</div><div class="stat-value">${txns.length}</div></div>
+  `;
+
+  // Bar chart - monthly
+  const monthGroups = {};
+  transactions.forEach(t => {
+    const m = t.date.slice(0,7);
+    if (!monthGroups[m]) monthGroups[m] = { income:0, expense:0 };
+    monthGroups[m][t.type] += t.amount;
+  });
+  const mKeys = Object.keys(monthGroups).sort().slice(-6);
+  const barCtx = document.getElementById('barChart').getContext('2d');
+  if (barChartInst) barChartInst.destroy();
+  barChartInst = new Chart(barCtx, {
+    type: 'bar',
+    data: {
+      labels: mKeys.map(m => new Date(m+'-01').toLocaleString('default',{month:'short'})),
+      datasets: [
+        { label:'Income', data: mKeys.map(m => monthGroups[m].income||0), backgroundColor:'rgba(77,186,126,0.7)', borderRadius: 4 },
+        { label:'Expense', data: mKeys.map(m => monthGroups[m].expense||0), backgroundColor:'rgba(232,168,56,0.7)', borderRadius: 4 }
+      ]
+    },
+    options: {
+      responsive: true, maintainAspectRatio: false,
+      plugins: { legend: { display: false }, tooltip: { callbacks: { label: ctx => ctx.dataset.label+': '+fmt(ctx.raw) }}},
+      scales: {
+        x: { ticks: { color:'#5c5a56', font:{family:'Martian Mono',size:10} }, grid:{color:'rgba(255,255,255,0.04)'}, border:{display:false} },
+        y: { ticks: { color:'#5c5a56', font:{family:'Martian Mono',size:10}, callback: v => '₦'+(v/1000).toFixed(0)+'k' }, grid:{color:'rgba(255,255,255,0.04)'}, border:{display:false} }
+      }
+    }
+  });
+
+  // Pie
+  const catTotals = {};
+  txns.filter(t=>t.type==='expense').forEach(t => { catTotals[t.category]=(catTotals[t.category]||0)+t.amount; });
+  const catKeys = Object.keys(catTotals);
+  const pieCtx = document.getElementById('pieChart').getContext('2d');
+  if (pieChartInst) pieChartInst.destroy();
+  if (catKeys.length) {
+    pieChartInst = new Chart(pieCtx, {
+      type: 'pie',
+      data: {
+        labels: catKeys.map(k=>CAT_LABELS[k]||k),
+        datasets: [{ data: catKeys.map(k=>catTotals[k]), backgroundColor: catKeys.map(k=>CAT_COLORS[k]||'#888'), borderWidth: 0 }]
+      },
+      options: {
+        responsive:true, maintainAspectRatio:false,
+        plugins: { legend: { position:'right', labels:{color:'#9a9690',font:{family:'Martian Mono',size:10},boxWidth:10,padding:12} } }
+      }
+    });
+  }
+
+  const rList = document.getElementById('report-tx-list');
+  const sorted = txns.sort((a,b)=>new Date(b.date)-new Date(a.date));
+  rList.innerHTML = sorted.length ? sorted.map(t=>txRow(t)).join('') : '<div class="empty-state"><div class="empty-icon">◎</div><div class="empty-text">No transactions match filters</div></div>';
+}
+
+// AI features
+function parseNotifText() {
+  const text = document.getElementById('notif-input').value.trim();
+  if (!text) { showToast('Paste a notification first'); return; }
+
+  const debitMatch = text.match(/(?:debit|charge|withdrawal|spent)[^\d]*([\d,]+\.?\d*)/i);
+  const creditMatch = text.match(/(?:credit|received|deposit)[^\d]*([\d,]+\.?\d*)/i);
+  const amountMatch = text.match(/(?:NGN|₦|N)\s*([\d,]+\.?\d*)/i) || text.match(/([\d,]{4,}\.?\d*)/);
+
+  let amount = 0;
+  let type = 'expense';
+
+  if (debitMatch) { amount = parseFloat(debitMatch[1].replace(/,/g,'')); type = 'expense'; }
+  else if (creditMatch) { amount = parseFloat(creditMatch[1].replace(/,/g,'')); type = 'income'; }
+  else if (amountMatch) { amount = parseFloat(amountMatch[1].replace(/,/g,'')); }
+
+  if (!amount) { showToast('Could not parse amount from notification'); return; }
+
+  const descCandidates = text.match(/(?:desc|narr|ref)[:\s]+([A-Z0-9 ]+)/i);
+  const desc = descCandidates ? descCandidates[1].trim() : 'Parsed transaction';
+
+  const today = fmtDate(new Date());
+  const tx = { id: uid(), type, desc, amount, category: type==='income'?'salary':'other', date: today, note: 'AI parsed' };
+  transactions.push(tx);
+  save();
+
+  const detDiv = document.getElementById('ai-detections');
+  if (detDiv.querySelector('.empty-state')) detDiv.innerHTML = '';
+  detDiv.innerHTML = `<div class="notif-item">
+    <div class="notif-icon ${type}">${type==='income'?'↑':'↓'}</div>
+    <div class="notif-content">
+      <div class="notif-title">${desc}</div>
+      <div class="notif-sub">AI parsed · ${today} · ${type}</div>
+    </div>
+    <div class="notif-amount ${type==='income'?'green':'red'}">${type==='income'?'+':'-'}${fmt(amount)}</div>
+  </div>` + detDiv.innerHTML;
+
+  document.getElementById('notif-input').value = '';
+  showToast('✦ Transaction parsed & added');
+  renderAll();
+}
+
+function aiAnalyzeSpending() {
+  const txns = getMonthTxns(currentMonth, currentYear);
+  const totalOut = txns.filter(t=>t.type==='expense').reduce((a,b)=>a+b.amount,0);
+  const totalIn = txns.filter(t=>t.type==='income').reduce((a,b)=>a+b.amount,0);
+  const ratio = totalIn > 0 ? ((totalOut/totalIn)*100).toFixed(1) : 100;
+
+  const catTotals = {};
+  txns.filter(t=>t.type==='expense').forEach(t => { catTotals[t.category]=(catTotals[t.category]||0)+t.amount; });
+  const topCat = Object.entries(catTotals).sort((a,b)=>b[1]-a[1])[0];
+
+  document.getElementById('ai-insights-status').textContent = '— Analyzing…';
+
+  setTimeout(() => {
+    const insights = [];
+    if (ratio > 80) insights.push(`⚠ You spent ${ratio}% of your income this month. Consider reviewing discretionary expenses.`);
+    else if (ratio < 40) insights.push(`✓ Excellent financial health — only ${ratio}% of income used on expenses.`);
+    else insights.push(`◈ You spent ${ratio}% of income. You're within healthy range.`);
+
+    if (topCat) insights.push(`✦ Biggest spending category: <strong>${CAT_LABELS[topCat[0]]||topCat[0]}</strong> at ${fmt(topCat[1])} (${((topCat[1]/totalOut)*100).toFixed(0)}% of expenses).`);
+    if (totalOut > 0) insights.push(`◎ Average daily spend: ${fmt(Math.round(totalOut/30))}`);
+
+    const entertain = catTotals['entertainment']||0;
+    if (entertain > totalOut * 0.2) insights.push(`↓ Entertainment takes ${((entertain/totalOut)*100).toFixed(0)}% of your budget — consider reducing.`);
+
+    document.getElementById('ai-insights-status').textContent = '— ' + getMonthName(currentMonth, currentYear);
+    document.getElementById('ai-insights-content').innerHTML = `
+      <div style="display:flex;flex-direction:column;gap:12px;padding:4px 0;">
+        ${insights.map(i => `<div style="padding:12px 16px;background:var(--bg3);border-radius:8px;border-left:3px solid var(--amber);font-size:13px;color:var(--text2);line-height:1.6;">${i}</div>`).join('')}
+      </div>`;
+  }, 800);
+}
+
+function aiSuggestBudget() {
+  const txns = transactions.slice(-90);
+  const catTotals = {};
+  txns.filter(t=>t.type==='expense').forEach(t => { catTotals[t.category]=(catTotals[t.category]||0)+t.amount; });
+
+  document.getElementById('ai-insights-content').innerHTML = `
+    <div style="padding:4px 0;">
+      <div style="font-size:13px;color:var(--text2);margin-bottom:12px;">Based on your last 90 days, here's a suggested monthly budget:</div>
+      ${Object.entries(catTotals).sort((a,b)=>b[1]-a[1]).map(([k,v]) => `
+        <div style="display:flex;justify-content:space-between;align-items:center;padding:10px 0;border-bottom:1px solid var(--border);">
+          <div style="display:flex;align-items:center;gap:8px;">
+            <span style="width:8px;height:8px;border-radius:50%;background:${CAT_COLORS[k]||'#888'};display:inline-block;"></span>
+            <span style="font-size:13px;color:var(--text2);">${CAT_LABELS[k]||k}</span>
+          </div>
+          <span style="font-family:var(--mono);font-size:12px;color:var(--amber);">${fmt(Math.round(v/3))}/mo</span>
+        </div>`).join('')}
+    </div>`;
+  document.getElementById('ai-insights-status').textContent = '— Budget suggestion';
+}
+
+function aiParseNotification() {
+  document.getElementById('notif-input').focus();
+  showToast('Paste your bank SMS or notification in the box above');
+}
+
+function showToast(msg) {
+  const t = document.getElementById('toast');
+  t.textContent = msg;
+  t.classList.add('show');
+  setTimeout(() => t.classList.remove('show'), 2800);
+}
+
+function renderAll() {
+  renderStats();
+  renderCharts();
+  renderRecentTx();
+  renderAllTx();
+}
+
+// Init date input
+document.getElementById('date-input').value = fmtDate(new Date());
+updateMonthDisplay();
+setGreeting();
+renderAll();
+</script>
+</body>
+</html>
